@@ -25,4 +25,23 @@ source(here::here("src","features","build_features.R"))
 ```
 
 # Introduction
+The purpose of this exploratory analysis is to test out different machine learning algorithms.
+
+# Models
+## randomForest
+```{r}
+data <- train %>% 
+  mutate_if(is.character, factor) %>% 
+  mutate(Survived = factor(Survived))
+
+randomForest(Survived ~ Pclass + Sex + Age, data = data, importance=T, na.action = median)
+```
+
+## nnet
+
+
+## svm
+## glmnet
+
+
 
