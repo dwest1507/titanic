@@ -20,21 +20,35 @@ source(here::here("src","_init_.R"))
 # Loading the data set
 source(here::here("src","data","make_dataset.R"))
 
-# Building new features in the data
+# Feature engineering
 source(here::here("src","features","build_features.R"))
 ```
 
 # Introduction
 The purpose of this exploratory analysis is to test out different machine learning algorithms.
 
+# Ground Rules and Assumptions
+1. There are NAs for Age in the training data set. A median age will be assumend for all Age NAs. <br />
+2. PassengerID, Name, Ticket, and Cabin will be removed from the training data set since there are too many levels for some ML algorithms. May have to come back to this and find a way to incorporate its data still.
+
+```{r}
+train2 <- train %>% 
+  mutate(
+    Age = case_when(
+      is.na(Age) ~ median(train$Age, na.rm = T),
+      TRUE ~ Age),
+    Survived = factor(Survived)) %>% 
+  select(-c(Name, PassengerId, Ticket, Cabin))
+```
+
+
 # Models
 ## randomForest
+A randomForest model is created below. 
 ```{r}
-data <- train %>% 
-  mutate_if(is.character, factor) %>% 
-  mutate(Survived = factor(Survived))
+rf_model1 <- randomForest(Survived ~ ., data = train2)
 
-randomForest(Survived ~ Pclass + Sex + Age, data = data, importance=T, na.action = median)
+print(rf_model1)
 ```
 
 ## nnet
