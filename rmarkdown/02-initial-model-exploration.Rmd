@@ -14,7 +14,14 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-library(tidyverse)
+# Initial set up of libraries
+source(here::here("src","_init_.R"))
+
+# Loading the data set
+source(here::here("src","data","make_dataset.R"))
+
+# Building new features in the data
+source(here::here("src","features","build_features.R"))
 ```
 
 # Introduction
