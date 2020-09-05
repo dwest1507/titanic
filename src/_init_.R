@@ -1,5 +1,5 @@
 library(tidyverse)
 library(randomForest)
 library(nnet)
-library(svm)
+library(e1071)
 library(glmnet)
