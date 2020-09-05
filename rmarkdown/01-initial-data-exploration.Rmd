@@ -178,7 +178,7 @@ train2 %>%
             n = n()) %>% 
   ungroup()
 ```
-These are some potential predictors of survival. Makes sens that the Capt went down with the ship. Interesting enough, Mrs has a higher survival rate than Miss. The survival rate for Master is lower than both Mrs and Miss. Lastly, the survival rate for Mr is very low. Below shows the survival rate by OtherNameExists.
+These are some potential predictors of survival. Makes sense that the Capt went down with the ship. Interesting enough, Mrs has a higher survival rate than Miss. The survival rate for Master is lower than both Mrs and Miss. Lastly, the survival rate for Mr is very low. Below shows the survival rate by OtherNameExists.
 ```{r}
 train2 %>% 
   group_by(OtherNameExists) %>% 
@@ -186,7 +186,15 @@ train2 %>%
             n = n()) %>% 
   ungroup()
 ```
-Interesting... If there is another name in parentheses, there is a higher survival rate. I wonder if this is related to class or if it is the name of someones spouse or child...
+Interesting... If there is another name in parentheses, there is a higher survival rate. I wonder if this is related to class or if it is the name of someones spouse or child... What titles are associated with other names existing?
+```{r}
+train2 %>% 
+  group_by(Title,OtherNameExists) %>% 
+  count() %>% 
+  pivot_wider(names_from = OtherNameExists, values_from=n)
+```
+A lot of Mrs. have other names. That makes sense. It must be their maiden name.
+
 
 ## Sex
 Based on what we saw with Titles and the notion of Women and children first, I'm guessing it's a bad day to be a male on the Titanic.
