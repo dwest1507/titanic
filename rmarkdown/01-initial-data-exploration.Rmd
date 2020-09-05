@@ -1,0 +1,663 @@
+---
+title: "EDA of Titanic Data"
+author: "David West"
+date: "8/13/2020"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    code_folding: show
+    
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+dictionary <- tibble(
+  Variable = c(
+    "survival",
+    "pclass",
+    "sex",
+    "Age",
+    "sibsp",
+    "parch",
+    "ticket",
+    "fare",
+    "cabin",
+    "embarked"
+  ),
+  Definition = c(
+    "Survival",
+    "Ticket class",
+    "Sex",
+    "Age in years",
+    "# of siblings / spouses aboard the Titanic",
+    "# of parents / children aboard the Titanic",
+    "Ticket number",
+    "Passenger fare",
+    "Cabin number",
+    "Port of Embarkation"
+  ),
+  Key = c(
+    "0 = No, 1 = Yes",
+    "1 = 1st, 2 = 2nd, 3 = 3rd",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "C = Cherbourg, Q = Queenstown, S= Southampton"
+  )
+)
+```
+
+# Intro
+This is an EDA of the [Titanic data set](https://www.kaggle.com/c/titanic/) on Kaggle. The objective is to understand the data set and eventually create a predictive model for survival rate.
+
+## Data Dictionary
+The following descriptions were provided on Kaggle.
+```{r}
+dictionary
+```
+
+The following notes were provided about the variables: <br />
+pclass: A proxy for socio-economic status (SES) <br />
+1st = Upper <br />
+2nd = Middle <br />
+3rd = Lower <br /><br />
+
+age: Age is fractional if less than 1. If the age is estimated, is it in the form of xx.5 <br /><br />
+
+sibsp: The dataset defines family relations in this way... <br />
+Sibling = brother, sister, stepbrother, stepsister <br />
+Spouse = husband, wife (mistresses and fiancés were ignored) <br /><br />
+
+parch: The dataset defines family relations in this way... <br />
+Parent = mother, father <br />
+Child = daughter, son, stepdaughter, stepson <br />
+Some children travelled only with a nanny, therefore parch=0 for them. <br />
+
+# Importing the Data
+The script below imports the data into R.
+```{r}
+train <- read_csv(here::here("data","raw","train.csv"))
+test <- read_csv(here::here("data","raw","test.csv"))
+submission_example <- read_csv(here::here("data","raw","gender_submission.csv"))
+```
+
+# First Look
+Let's look at the training data.
+```{r}
+head(train)
+glimpse(train)
+summary(train)
+```
+Now, let's look at each variable one at a time.
+
+## PassengerID
+I'm guessing this a unique identifier for each passenger. Below is a quick summary:
+```{r}
+summary(train$PassengerId)
+```
+No NA's. That's good. If PassengerId is a true unique identifier, the max PassengerId number should equal the number of rows of data.
+```{r}
+nrow(train)
+```
+They are both `r nrow(train)`. The summary from First Look shows no NA's either. This variable looks good.
+
+## Survived
+According to the data dictionary, 1 means the passenger survived and 0 means the passenger did not. Below is a quick summary:
+```{r}
+summary(train$Survived)
+```
+Looks like the average survival rate was only `r mean(train$Survived)`. Not so good... The data looks fine though.
+
+## Pclass
+I'm guessing, Pclass (Ticket class) will be a good feature / variable to use in a predictive model. Below is a quick summary:
+```{r}
+summary(train$Pclass)
+```
+No NA's. Good. Below is a count of passengers for each class:
+```{r}
+train %>% 
+  group_by(Pclass) %>% 
+  count() %>% 
+  ungroup()
+```
+Looks like the majority of passengers were in 3rd class / lower socio-economic status (SES). Below is the average survival rate by Pclass.
+```{r}
+train %>% 
+  group_by(Pclass) %>% 
+  summarise(SurvivalRate = mean(Survived)) %>% 
+  ungroup()
+```
+Just like the James Cameron movie, survival rate is lower for lower SESs. This is definitely a good predictive variable / feature.
+
+## Name
+There are `r nrow(train)` rows of data. How many unique names are there?
+```{r}
+train %>% 
+  select(Name) %>% 
+  unique() %>% 
+  count()
+```
+Same as number of rows. That's good. There are no duplicate names. Each is unique. Let's look at the first 20 and see if any additional information can be pulled from it.
+```{r}
+head(train$Name, n=20)
+```
+Looks like the names follow the structure "Last_name, Title First_Name Middle_Name (Another optional name?)". This column of data can probably be broken into additional features. Last name might have some predictive power (i.e. if one person in the family survived, another person in the family probably survived). Title might have som predictive power. I wonder if the survival rate between a Miss and a Mrs is different. Also, what is a Master? Does that meant 1st class. This will need more exploring. First and middle names probably doesn't have predictive power. Might not be worth the effort making them features. I will have to think on that one. Lastly, what are all the names in parentheses about? This will need more digging.... But first,
+
+### New Features
+The script below will create the following new features: LastName, Title, OtherName (i.e. name in parentheses), OtherNameExists (a TRUE or FALSE of whether there is something in the OtherName column).
+```{r}
+train2 <- train %>% 
+  mutate(
+    LastName = str_extract(Name, "^.*(?=,)"),
+    Title = str_extract(Name, "(?<=, )[^.]*"),
+    OtherName = str_extract(Name, "(?<=\\()[^\\)]*"),
+    OtherNameExists = is.na(OtherName)==FALSE
+  )
+```
+Below shows the first 20 rows of Names and the new features.
+```{r}
+df <- train2 %>% 
+  select(Name, LastName, Title, OtherName, OtherNameExists)
+
+head(df, n=20)
+```
+Looks good. Let's see what the survival rate is by Title.
+```{r}
+train2 %>% 
+  group_by(Title) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+These are some potential predictors of survival. Makes sens that the Capt went down with the ship. Interesting enough, Mrs has a higher survival rate than Miss. The survival rate for Master is lower than both Mrs and Miss. Lastly, the survival rate for Mr is very low. Below shows the survival rate by OtherNameExists.
+```{r}
+train2 %>% 
+  group_by(OtherNameExists) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+Interesting... If there is another name in parentheses, there is a higher survival rate. I wonder if this is related to class or if it is the name of someones spouse or child...
+
+## Sex
+Based on what we saw with Titles and the notion of Women and children first, I'm guessing it's a bad day to be a male on the Titanic.
+```{r}
+train2 %>% 
+  group_by(Sex) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+Just as expected, females have a way higher survival rate. This is a good predictor.
+
+## Age
+Below is a summary of Age:
+```{r}
+summary(train$Age)
+```
+Looks like a fairly young population. There are also `r sum(is.na(train$Age))` NA's for Age. These rows of data may have to be removed from the data set... Or Age will have to be estimated. A mean or median age can take the place of NA's or a predictive model for Age can be created. This will probably require it's own separate EDA. For now, let's look at any trends in the available data.
+```{r}
+df <- train2 %>% 
+  filter(is.na(Age)==FALSE) %>% 
+  group_by(Age) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+
+df
+```
+This is a little hard to interpret. A scatter plot might help.
+```{r}
+ggplot(df) +
+  aes(x=Age, y=SurvivalRate) +
+  geom_point()
+```
+This isn't too clear. Arguably, the age range 0-20 has a higher rate of survival but this plot is noisy. What if it was separated by Sex.
+```{r}
+df <- train2 %>% 
+  filter(is.na(Age)==FALSE) %>% 
+  group_by(Sex, Age) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+
+ggplot(df) +
+  aes(x=Age, y=SurvivalRate) +
+  geom_point() +
+  facet_grid(.~Sex)
+```
+
+What if it was separated by Pclass.
+```{r}
+df <- train2 %>% 
+  filter(is.na(Age)==FALSE) %>% 
+  group_by(Pclass, Age) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+
+ggplot(df) +
+  aes(x=Age, y=SurvivalRate) +
+  geom_point() +
+  facet_grid(Pclass~.)
+```
+
+What if it was separated by Sex and Pclass.
+```{r}
+df <- train2 %>% 
+  filter(is.na(Age)==FALSE) %>% 
+  group_by(Sex, Pclass, Age) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+
+ggplot(df) +
+  aes(x=Age, y=SurvivalRate) +
+  geom_point() +
+  facet_grid(Pclass~Sex)
+```
+The charts are still very noisy, but it looks like younger kids have a higher chance of survival. This could be a potential predictive variable as well, but not as strong as the previous variables.
+
+### New Feature
+Age will be broken into 20 bins. The bins will not follow the same approach as the histogram. Instead, the bins will be calculated based on cumulative density (i.e quantile 0 to 0.05 will be the first bin, 0.05 to 0.10 will be the next bin, and so on). This new feature will be called AgeBin
+```{r}
+train3 <- train2 %>% 
+  mutate(
+    AgeBin = case_when(
+      is.na(Age) ~ NA_integer_,
+      Age < quantile(train2$Age,0.05, na.rm = T) ~  1L,
+      Age < quantile(train2$Age,0.10, na.rm = T) ~  2L,
+      Age < quantile(train2$Age,0.15, na.rm = T) ~  3L,
+      Age < quantile(train2$Age,0.20, na.rm = T) ~  4L,
+      Age < quantile(train2$Age,0.25, na.rm = T) ~  5L,
+      Age < quantile(train2$Age,0.30, na.rm = T) ~  6L,
+      Age < quantile(train2$Age,0.35, na.rm = T) ~  7L,
+      Age < quantile(train2$Age,0.40, na.rm = T) ~  8L,
+      Age < quantile(train2$Age,0.45, na.rm = T) ~  9L,
+      Age < quantile(train2$Age,0.50, na.rm = T) ~ 10L,
+      Age < quantile(train2$Age,0.55, na.rm = T) ~ 11L,
+      Age < quantile(train2$Age,0.60, na.rm = T) ~ 12L,
+      Age < quantile(train2$Age,0.65, na.rm = T) ~ 13L,
+      Age < quantile(train2$Age,0.70, na.rm = T) ~ 14L,
+      Age < quantile(train2$Age,0.75, na.rm = T) ~ 15L,
+      Age < quantile(train2$Age,0.80, na.rm = T) ~ 16L,
+      Age < quantile(train2$Age,0.85, na.rm = T) ~ 17L,
+      Age < quantile(train2$Age,0.90, na.rm = T) ~ 18L,
+      Age < quantile(train2$Age,0.95, na.rm = T) ~ 19L,
+      TRUE ~ 20L))
+```
+
+Let's look at the survival rate for each AgeBin.
+```{r}
+df <- train3 %>% 
+  group_by(AgeBin) %>% 
+  summarise(
+    SurvivalRate = mean(Survived),
+    n = n()
+  ) %>% 
+  ungroup()
+
+df
+```
+Let's plot it on a scatter plot.
+```{r}
+ggplot(df, aes(x=AgeBin, y = SurvivalRate)) +
+  geom_point()
+```
+Now broken up by Sex and Pclass.
+```{r}
+df <- train3 %>% 
+  group_by(AgeBin, Sex, Pclass) %>% 
+  summarise(
+    SurvivalRate = mean(Survived)) %>% 
+  ungroup()
+
+ggplot(df, aes(x=AgeBin, y = SurvivalRate)) +
+  geom_point() +
+  facet_grid(Pclass~Sex) +
+  geom_smooth()
+```
+Looks like younger males have a higher survival rate than those older males. This difference is more prevalent in the 1st and 2nd Pclass.
+
+
+## SibSp
+The following description was provided for this column: <br /><br />
+
+sibsp: The dataset defines family relations in this way... <br />
+Sibling = brother, sister, stepbrother, stepsister <br />
+Spouse = husband, wife (mistresses and fiancés were ignored) <br /><br />
+
+Below is a quick summary:
+```{r}
+summary(train3$SibSp)
+```
+Looks like this variable counts the number of siblings someone has. Below is the average survival rate by SibSp.
+```{r}
+train3 %>% 
+  group_by(SibSp) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+I don't see any clear trend. SibSp could potentially link to the LastName feature somehow. I'm guessing if one sibling survives, so should the other. The table below shows average survival rate, sample size (n), and average number of Siblings/Spouses by last name.
+```{r}
+train3 %>% 
+  group_by(LastName) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n(),
+            SibSp = mean(SibSp)) %>% 
+  ungroup()
+```
+My head is spinning!... The average SibSp does not line up with n sometimes... There might be some families with the same last name.
+
+## Parch
+The following description was provided for this column: <br /><br />
+
+parch: The dataset defines family relations in this way... <br />
+Parent = mother, father <br />
+Child = daughter, son, stepdaughter, stepson <br />
+Some children travelled only with a nanny, therefore parch=0 for them. <br />
+
+Below is a quick summary:
+```{r}
+summary(train3$Parch)
+```
+No NA's. That's good. Below is the average survival rate by Parch.
+```{r}
+train3 %>% 
+  group_by(Parch) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+There might be a higher survival rate for parents and their children.
+
+## Ticket
+I don't think any trends will come from the ticket number but let's take a look. There are `nrow(train)` rows of data. How many unique ticket numbers are there?
+```{r}
+train3 %>% 
+  select(Ticket) %>% 
+  unique() %>% 
+  count()
+```
+That is less than the rows of data. There must be duplicate tickets. I don't know if this has any relevance... What else is there? Below are the first 50 ticket numbers.
+```{r}
+head(train3$Ticket, n =50)
+```
+
+### New Features
+Looks like some ticket numbers have pre-fixes. This can create two new features: TicketPrefix, TicketNo.
+```{r}
+train4 <- train3 %>% 
+  mutate(
+    TicketPrefix = str_extract(Ticket, "^.*(?= \\d{3})"),
+    TicketPrefix = str_remove_all(TicketPrefix, "\\."),
+    TicketNo = case_when(
+      str_detect(Ticket, " ") ~ str_extract(Ticket, "\\d*$"),
+      TRUE ~ Ticket
+    )
+  )
+```
+
+Below is the average survival rate by TicketPrefix.
+```{r}
+train4 %>% 
+  group_by(TicketPrefix) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+I don't know if this means anything. Maybe some machine learning magic can make sense of it. Below is the number of unique TicketNo. 
+```{r}
+train4 %>% 
+  select(TicketNo) %>% 
+  unique() %>% 
+  count()
+```
+It is slightly less than the number of unique Ticket. Once again, not sure if this means anything.
+
+## Fare
+Just like Pclass, I expect that there is a positive correlation between Fare and survival rate. Below is a summary of Fare.
+```{r}
+summary(train4$Fare)
+```
+Below is a scatter plot of Fare vs SurvivalRate.
+```{r}
+df <- train4 %>% 
+  group_by(Fare) %>% 
+  summarise(
+    SurvivalRate = mean(Survived)
+  ) %>% 
+  ungroup()
+
+ggplot(df) +
+  aes(x=Fare, y=SurvivalRate) +
+  geom_point()
+```
+
+Below is a scatter plot of Fare vs SurvivalRate faceted by Sex.
+```{r}
+df <- train4 %>% 
+  group_by(Fare, Sex) %>% 
+  summarise(
+    SurvivalRate = mean(Survived)
+  ) %>% 
+  ungroup()
+
+ggplot(df) +
+  aes(x=Fare, y=SurvivalRate) +
+  geom_point() +
+  facet_grid(.~Sex)
+```
+Looks like as Fare increases, so does survival rate. However, there is an exception for Males. It appears that a Far above $200 for males results in a low survival rate. Let's try a different visual. The graphic below shows a histogram of survival (1) and death (0) by Fare at 10 bins.
+```{r}
+df <- train4 %>% 
+  mutate(Pclass = as.factor(Pclass),
+         Survived = as.factor(Survived),
+         Sex = as.factor(Sex))
+
+ggplot(df, aes(x=Fare, fill=Survived)) +
+  geom_histogram(bins = 10)
+```
+Looks like survival increase as Fare increases, but it's harder to visualize with the higher fares as the sample size decreases. To overcome this, the y axis can be converted to a percent breakout instead of a count. See below:
+```{r}
+ggplot(df, aes(x=Fare, fill=Survived)) +
+  geom_histogram(position="fill", bins = 10)
+```
+That's much easier to visualize. It appears that survival rate increase as Fare goes up and then decreases after a 200+ Fare. Also, the data past 400 might be an outlier. Let's remove any Fare past the 99% CI and see what this graphic looks like then.
+```{r}
+df <- train4 %>% 
+  mutate(Pclass = as.factor(Pclass),
+         Survived = as.factor(Survived),
+         Sex = as.factor(Sex)) %>% 
+  filter(Fare < quantile(Fare, .99))
+
+ggplot(df, aes(x=Fare, fill=Survived)) +
+  geom_histogram(position="fill", bins = 10)
+```
+Looks like the highest change of survival is if some one but a ticket in between 100 and 200. Now let's look at this same graphic but broken up by Pclass and Sex.
+```{r}
+ggplot(df, aes(x=Fare, fill=Survived)) +
+  geom_histogram(position="fill", bins = 10) +
+  facet_grid(Pclass~Sex)
+```
+Interesting, female passengers in Pclass 3 have a lower survival rate if they had a more expensive ticket. Also, male passengers that had a ticket fare past 200 had a survival rate of zero. 
+### New Feature
+Let's try this analysis one more time, with a different approach. Fare will be broken into 20 bins. The bins will not follow the same approach as the histogram. Instead, the bins will be calculated based on cumulative density (i.e quantile 0 to 0.05 will be the first bin, 0.05 to 0.10 will be the next bin, and so on). This new feature will be called FareBin
+```{r}
+train5 <- train4 %>% 
+  mutate(
+    FareBin = case_when(
+      Fare < quantile(train4$Fare,0.05) ~  1L,
+      Fare < quantile(train4$Fare,0.10) ~  2L,
+      Fare < quantile(train4$Fare,0.15) ~  3L,
+      Fare < quantile(train4$Fare,0.20) ~  4L,
+      Fare < quantile(train4$Fare,0.25) ~  5L,
+      Fare < quantile(train4$Fare,0.30) ~  6L,
+      Fare < quantile(train4$Fare,0.35) ~  7L,
+      Fare < quantile(train4$Fare,0.40) ~  8L,
+      Fare < quantile(train4$Fare,0.45) ~  9L,
+      Fare < quantile(train4$Fare,0.50) ~ 10L,
+      Fare < quantile(train4$Fare,0.55) ~ 11L,
+      Fare < quantile(train4$Fare,0.60) ~ 12L,
+      Fare < quantile(train4$Fare,0.65) ~ 13L,
+      Fare < quantile(train4$Fare,0.70) ~ 14L,
+      Fare < quantile(train4$Fare,0.75) ~ 15L,
+      Fare < quantile(train4$Fare,0.80) ~ 16L,
+      Fare < quantile(train4$Fare,0.85) ~ 17L,
+      Fare < quantile(train4$Fare,0.90) ~ 18L,
+      Fare < quantile(train4$Fare,0.95) ~ 19L,
+      TRUE ~ 20L))
+```
+Let's look at the survival rate for each FareBin.
+```{r}
+df <- train5 %>% 
+  group_by(FareBin) %>% 
+  summarise(
+    SurvivalRate = mean(Survived),
+    n = n()
+  ) %>% 
+  ungroup()
+
+df
+```
+Let's plot it on a scatter plot.
+```{r}
+ggplot(df, aes(x=FareBin, y = SurvivalRate)) +
+  geom_point()
+```
+Now broken up by Sex and Pclass.
+```{r}
+df <- train5 %>% 
+  group_by(FareBin, Sex, Pclass) %>% 
+  summarise(
+    SurvivalRate = mean(Survived),
+    n = n()
+  ) %>% 
+  ungroup()
+
+ggplot(df, aes(x=FareBin, y = SurvivalRate)) +
+  geom_point() +
+  facet_grid(Pclass~Sex)
+```
+This affirms some of the previous observations.
+
+
+## Cabin
+Below is count of each Cabin.
+```{r}
+train5 %>% 
+  group_by(Cabin) %>% 
+  count() %>% 
+  ungroup()
+```
+There are `r sum(is.na(train$Cabin))` NA's. The letter in front could signify which floor a passenger is on. This might correlate to Pclass and SurvivalRate. This can become a new feature and potentially a predictive variable. Also, some have multiple Cabin numbers. The count of cabins could become a feature as well. But first... there are some weird Cabin numbers that need a deeper look: ones that have two letters and one that is just the letter T.
+```{r}
+train5 %>% 
+  filter(
+    str_detect(Cabin,"F E69|F G63|F G73|T|F2|F33|F38|F4|G6")) %>% 
+  select(Survived,Pclass,Name,Sex,Age,Cabin)
+```
+Looks like the first letter in cabin number might be safe to assume. F and G passengers are all in the Pclass 2 or 3.
+### New Features
+The script below creates the following new features: CabinLevel (the first letter in Cabin), & CabinQty (the number of Cabins listed).
+```{r}
+train6 <- train5 %>% 
+  mutate(
+    CabinLevel = str_extract(Cabin,"^."),
+    CabinQty = 
+      str_count(Cabin, "[:alpha:]\\d{1,3}")
+  )
+```
+Below is the survival rate by CabinLevel.
+```{r}
+train6 %>% 
+  group_by(CabinLevel) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+Interesting, all cabin levels seem to have higher survival rate than those rows missing cabin levels. What about by CabinQty?
+```{r}
+train6 %>% 
+  group_by(CabinQty) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+This just re-affirms what was stated earlier. Those with cabin numbers had a higher survival rate. I wonder if only higher Pclass passengers had their Cabin recorded? Below is the survival rate and sample size of all the rows of data that included a cabin number:
+```{r}
+train6 %>% 
+  filter(is.na(CabinLevel)==FALSE) %>% 
+  group_by(Pclass) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+Just as expected, the majority are in Pclass 1. How do these survival rates stack up against the average survival rate of those without a cabin number? Below are the survival rates of all those without a cabin number:
+```{r}
+train6 %>% 
+  filter(is.na(CabinLevel)) %>% 
+  group_by(Pclass) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+Those with a cabin number have a higher survival rate than those without. Therfore, this should be made a feature. NoCabin will be FALSE if there is a cabin number and TRUE if there is not one.
+```{r}
+train7 <- train6 %>% 
+  mutate(
+    NoCabin = is.na(Cabin)
+  )
+```
+This could be a good predictive variable.
+
+## Embarked
+The description of Embarked say: <br />
+C = Cherbourg, <br />
+Q = Queenstown, <br />
+S = Southampton <br /><br />
+Below is the survival rate by embarkment port:
+```{r}
+train7 %>% 
+  group_by(Embarked) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+
+Below is the survival rate by embarkment port and Pclass:
+```{r}
+train7 %>% 
+  group_by(Embarked, Pclass) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+
+Below is the survival rate by embarkment port and Sex:
+```{r}
+train7 %>% 
+  group_by(Embarked, Sex) %>% 
+  summarise(SurvivalRate = mean(Survived),
+            n = n()) %>% 
+  ungroup()
+```
+Embarked may be a good predictive variable as well. 
+
+# Conclusion
+Pclass and Sex appear to be the strongest predictive variables. This will be confirmed during the model building EDA. There may be more feature engineering to come but I think this is a good start.
+
+
+
+
+

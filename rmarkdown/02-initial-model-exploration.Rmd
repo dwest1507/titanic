@@ -1,0 +1,21 @@
+---
+title: "EDA of Titanic Data"
+author: "David West"
+date: "8/13/2020"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    code_folding: show
+    
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+# Introduction
+
