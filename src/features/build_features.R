@@ -11,6 +11,7 @@ train <- data %>%
   filter(is.na(Survived)==FALSE)
 
 test <- data %>% 
-  filter(is.na(Survived))
+  filter(is.na(Survived)) %>% 
+  select(-Survived)
 
 rm(data)
