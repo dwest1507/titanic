@@ -407,8 +407,12 @@ Looks like some ticket numbers have pre-fixes. This can create two new features:
 ```{r}
 train4 <- train3 %>% 
   mutate(
-    TicketPrefix = str_extract(Ticket, "^.*(?= \\d{3})"),
-    TicketPrefix = str_remove_all(TicketPrefix, "\\."),
+    TicketPrefix = 
+      fct_explicit_na(
+        factor(
+          str_to_lower(
+            str_remove_all(
+              str_extract(Ticket, "^.*(?= \\d{3})"), "\\.|\\/|\\s")))),
     TicketNo = case_when(
       str_detect(Ticket, " ") ~ str_extract(Ticket, "\\d*$"),
       TRUE ~ Ticket
