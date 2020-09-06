@@ -1,3 +1,7 @@
+# set seed for reproducibility
+set.seed(123)
+
+# List of libraries needed
 library(tidyverse)
 library(randomForest)
 
@@ -57,9 +61,6 @@ rm(data)
 # remove factors with too many levels
 train2 <- train %>% 
   select(-c(Name, PassengerId, Ticket, Cabin))
-
-# set seed for reproducibility
-set.seed(123)
 
 # create model
 rf_model1 <- randomForest(Survived ~ ., data = train2)
