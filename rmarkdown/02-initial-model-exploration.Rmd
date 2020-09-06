@@ -29,27 +29,66 @@ The purpose of this exploratory analysis is to test out different machine learni
 
 # Ground Rules and Assumptions
 1. There are NAs for Age in the training data set. A median age will be assumend for all Age NAs. <br />
-2. PassengerID, Name, Ticket, and Cabin will be removed from the training data set since there are too many levels for some ML algorithms. May have to come back to this and find a way to incorporate its data still.
+2. There is one NA for Far in the data. A median Fare will be assumed. <br />
+3. PassengerID, Name, Ticket, and Cabin will be removed from the training data set since there are too many levels for some ML algorithms. May have to come back to this and find a way to incorporate its data still.
 
 ```{r}
 train2 <- train %>% 
-  mutate(
-    Age = case_when(
-      is.na(Age) ~ median(train$Age, na.rm = T),
-      TRUE ~ Age),
-    Survived = factor(Survived)) %>% 
   select(-c(Name, PassengerId, Ticket, Cabin))
 ```
 
 
 # Models
 ## randomForest
-A randomForest model is created below. 
+### Attempt 1
+A randomForest model is created below.
 ```{r}
+set.seed(123)
+
 rf_model1 <- randomForest(Survived ~ ., data = train2)
 
 print(rf_model1)
 ```
+This is a `r rf_model1$type` random forest model. `r rf_model1$ntree` trees are used. `r rf_model1$mtry` variables are tried at each split in a tree, which is (by default) calculated from the square root of total features. The out of bag (OOB) error rate is `r as.numeric(rf_model1$err.rate[nrow(rf_model1$err.rate),"OOB"])`. A random forest model uses bootstrap sampling. This means for each tree, observations are randomly pulled from the data N [nrow(data)] amount of times. An observation has the potential of being duplicated or absent from a bootstrap sample. The absent observations are called the OOB set or OOB sample. Since the OOB sample was not used to train the random forest, it can be used to test the performance of the model. The error across all the OOB samples is called the OOB error (in this case, `r as.numeric(rf_model1$err.rate[nrow(rf_model1$err.rate),"OOB"])`). The OOB matrix is displayed below. Each row represents one tree in this model.
+```{r}
+err <- rf_model1$err.rate
+
+head(err)
+```
+The last row in this matrix is the final OOB error. This is the same value that is printed in the model output, "OOB estimate of  error rate".
+```{r}
+oob_err <- err[nrow(err),"OOB"]
+
+print(oob_err)
+```
+When the random forest model is plotted, it shows the OOB error as a function of the number of trees in the forest. This can be used to determine a point of diminishing returns for number of trees.
+
+```{r}
+plot(rf_model1)
+
+legend(x="right",
+       legend = colnames(err),
+       fill = 1:ncol(err))
+```
+It appears that the OOB error stays relatively flat in between 200 and 300 trees. Therefore, only ~300 trees are necessary for this model. There's nothing wrong with using "too many" trees. However computing predictions for each tree does take time. So if this was a bigger data set and computing speed was too slow, I would recommend cutting the model down to ~300 trees. Since this is a smaller data set. I will leave it as is. Time to generate predictions from this model.
+
+```{r}
+rf_model1_predictions <- predict(object = rf_model1,
+                                newdata = test,
+                                type = "class")
+
+rf_model1_submission <- test %>% 
+  as_tibble() %>% 
+  mutate(Survived = rf_model1_predictions) %>% 
+  select(PassengerId, Survived)
+```
+```{r}
+# write.csv(rf_model1_submission,
+#           here::here("data","processed","rf_model1_submission.csv"),
+#           row.names = F)
+```
+This model was uploaded to Kaggle and received a score of 0.74401. This means my predictions were 74.401% accurate. This put me at the rank of 17,048 out of 19,132. However, my rank is in the top 90th percentile. There must be a lot of duplicate scores above me in rank. Not too bad for a first try!
+
 
 ## nnet
 
