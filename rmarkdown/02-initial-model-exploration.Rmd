@@ -44,7 +44,6 @@ train2 <- train %>%
 A randomForest model is created below.
 ```{r}
 set.seed(123)
-
 rf_model1 <- randomForest(Survived ~ ., data = train2)
 
 print(rf_model1)
@@ -89,12 +88,75 @@ rf_model1_submission <- test %>%
 ```
 This model was uploaded to Kaggle and received a score of 0.74401. This means my predictions were 74.401% accurate. This put me at the rank of 17,048 out of 19,132. However, my rank is in the top 90th percentile. There must be a lot of duplicate scores above me in rank. Not too bad for a first try!
 
+### Attempt 2
+This model can be tuned by the following hyperparameters: <br />
+1. ntree: number of trees <br />
+2. mtry: number of variables randomly sampled as candidates at each split <br />
+3. sampsize: number of samples to train on <br />
+4. nodesize: minimum size (number of samples) of the terminal nodes <br />
+5. maxnodes: maximum number of terminal nodes <br />
+<br />
+First, I'll use the tuneRF function and see which mtry yields the lowest OOB error.
+```{r}
+res <- tuneRF(x = subset(train2, select = -Survived),
+              y = train2$Survived,
+              ntreeTry = 500,
+              doBest = T)
+
+print(res)
+```
+Looks like 3 is the way to go. The original model had an mtry of three, so this doesn't help much. Next, I'll establish a list of possible values for mtry, nodesize and sampsize. BEWARE! The below script takes awhile to run. 
+```{r}
+mtry <- seq(2,ncol(train2)*0.8,1)
+nodesize <- seq(3,8,1)
+sampsize <- round(nrow(train2) * seq(0.7,0.8,0.01), digits = 0)
+
+hyper_grid <- expand.grid(mtry = mtry, nodesize = nodesize, sampsize = sampsize)
+
+oob_err <- c()
+
+for (i in 1:nrow(hyper_grid)){
+  
+  model <- randomForest(Survived ~ ., 
+                        data = train2,
+                        mtry = hyper_grid$mtry[i],
+                        nodesize = hyper_grid$nodesize[i],
+                        sampsize = hyper_grid$sampsize[i])
+  
+  oob_err[i] <- model$err.rate[nrow(model$err.rate), "OOB"]
+}
+
+optimal <- which.min(oob_err)
+print(hyper_grid[optimal,])
+```
+Looks like a mtry of 4, nodesize of 7, and sampsize of 624 may be the best route. Let's look at this model.
+```{r}
+set.seed(123)
+rf_model2 <- randomForest(Survived ~ .,
+                          data = train2,
+                          mtry = 4,
+                          nodesize = 7,
+                          sampsize = 624)
+
+print(rf_model2)
+```
+It's still not as good as the first model. It's OOB error is `r as.numeric(rf_model2$err.rate[nrow(rf_model2$err.rate),"OOB"])`. The first model has an OOB error of `r as.numeric(rf_model1$err.rate[nrow(rf_model1$err.rate),"OOB"])`. I think this random forest isn't getting any better through tuning.
 
 ## nnet
 
 
 ## svm
 ## glmnet
+## Comparing Models
+### AUC
+Each model can be compared against each other using the metrice area under the curve (AUC). The AUC for the first random forest model is below:
+```{r}
+pred <- predict(object = rf_model1,
+                newdata = train,
+                type = "prob")
 
+auc(actual = train$Survived,
+    predicted = pred[,"1"])
+```
 
 
