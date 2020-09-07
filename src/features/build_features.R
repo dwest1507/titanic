@@ -1,5 +1,7 @@
 # Feature Engineering from inital data exploration
 data <- train %>% 
+  # Specify difference between train and test data before binding
+  mutate(DataSet = "train") %>% 
   # Combine train and test data
   bind_rows(test) %>% 
   # Assumes median for all NAs for Age and Fare
@@ -34,10 +36,10 @@ data <- train %>%
 
 # Separate test and train data again
 train <- data %>% 
-  filter(is.na(Survived)==FALSE)
+  filter(DataSet == "train") %>% 
+  select(-DataSet)
 
 test <- data %>% 
-  filter(is.na(Survived)) %>% 
-  select(-Survived)
+  filter(is.na(DataSet)) 
 
 rm(data)
