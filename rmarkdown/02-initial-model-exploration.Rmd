@@ -39,7 +39,7 @@ train2 <- train %>%
 
 
 # Models
-## randomForest
+## Random Forest
 ### Attempt 1
 A randomForest model is created below.
 ```{r}
@@ -69,7 +69,11 @@ legend(x="right",
        legend = colnames(err),
        fill = 1:ncol(err))
 ```
-It appears that the OOB error stays relatively flat in between 200 and 300 trees. Therefore, only ~300 trees are necessary for this model. There's nothing wrong with using "too many" trees. However computing predictions for each tree does take time. So if this was a bigger data set and computing speed was too slow, I would recommend cutting the model down to ~300 trees. Since this is a smaller data set. I will leave it as is. Time to generate predictions from this model.
+It appears that the OOB error stays relatively flat in between 200 and 300 trees. Therefore, only ~300 trees are necessary for this model. There's nothing wrong with using "too many" trees. However computing predictions for each tree does take time. So if this was a bigger data set and computing speed was too slow, I would recommend cutting the model down to ~300 trees. Since this is a smaller data set. I will leave it as is. The next section assesses the importance of each variable.
+```{r}
+rf_model1$importance
+```
+Looks like the most important features are (in order of importance): Title, Sex, FareBin, and AgeBin. This is good to know for potential other models. For now, all features will be included in this model. Now, time to generate predictions from this model.
 
 ```{r}
 rf_model1_predictions <- predict(object = rf_model1,
@@ -149,11 +153,29 @@ print(rf_model2)
 ```
 It's still not as good as the first model. It's OOB error is `r as.numeric(rf_model2$err.rate[nrow(rf_model2$err.rate),"OOB"])`. The first model has an OOB error of `r as.numeric(rf_model1$err.rate[nrow(rf_model1$err.rate),"OOB"])`. I think this random forest isn't getting any better through tuning.
 
+## Logistic Regression
+### Attempt 1
+```{r}
+train2 <- train %>% 
+  select(-c(Name, PassengerId, Ticket, Cabin))
+
+set.seed(123)
+glm_model1 <- glm(Survived ~ Title + Sex + FareBin + AgeBin, data = train2, family = binomial)
+
+print(glm_model1)
+```
+
+```{r}
+# glm_model1_predictions <- predict(object = glm_model1,
+#                                 newdata = test)
+```
+
+
+
 ## nnet
 
-
 ## svm
-## glmnet
+
 ## Comparing Models
 ### AUC
 Each model can be compared against each other using the metric area under the curve (AUC). The AUC for the first random forest model is below:
