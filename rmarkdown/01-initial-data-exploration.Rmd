@@ -82,8 +82,6 @@ Parent = mother, father <br />
 Child = daughter, son, stepdaughter, stepson <br />
 Some children travelled only with a nanny, therefore parch=0 for them. <br />
 
-test test test
-
 # Importing the Data
 The script below imports the data into R.
 ```{r}
